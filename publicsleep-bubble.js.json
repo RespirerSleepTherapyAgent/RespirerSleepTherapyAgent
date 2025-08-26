@@ -1,0 +1,88 @@
+(function () {
+  const apiUrl =
+    document.currentScript.getAttribute("data-sleep-api") ||
+    "/api/sleep-agent";
+
+  // Chat-knap
+  const bubble = document.createElement("div");
+  bubble.innerText = "💬 Søvn Hjælp";
+  bubble.style.cssText = `
+    position: fixed; bottom: 20px; right: 20px;
+    background: #4f46e5; color: white; padding: 12px 16px;
+    border-radius: 25px; cursor: pointer; font-family: system-ui, sans-serif;
+    z-index: 9999; box-shadow: 0 6px 24px rgba(0,0,0,.2);
+  `;
+  document.body.appendChild(bubble);
+
+  // Chat-vindue
+  const chat = document.createElement("div");
+  chat.style.cssText = `
+    position: fixed; bottom: 70px; right: 20px; width: 320px; height: 420px;
+    background: white; border: 1px solid #e5e7eb; border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.18); display: none; flex-direction: column;
+    font-family: system-ui, sans-serif; z-index: 9999;
+  `;
+  chat.innerHTML = `
+    <div style="padding:10px;border-bottom:1px solid #e5e7eb;font-weight:600">AI Søvn-guide</div>
+    <div style="padding:8px 10px;font-size:12px;color:#475569;border-bottom:1px solid #e5e7eb">
+      Generel info – erstatter ikke en læge. Ved akut krise: ring 112.
+    </div>
+    <div id="msgs" style="flex:1; padding:10px; overflow:auto;"></div>
+    <form id="form" style="display:flex; gap:8px; padding:10px; border-top:1px solid #e5e7eb">
+      <input id="inp" placeholder="Skriv her..." style="flex:1; border:1px solid #e5e7eb; border-radius:10px; padding:10px" />
+      <button style="border:none; background:#4f46e5; color:white; padding:10px 12px; border-radius:10px">Send</button>
+    </form>
+  `;
+  document.body.appendChild(chat);
+
+  const msgs = chat.querySelector("#msgs");
+  const form = chat.querySelector("#form");
+  const inp  = chat.querySelector("#inp");
+
+  const conv = [];
+  function add(role, text) {
+    const b = document.createElement("div");
+    b.style.margin = "6px 0";
+    b.style.maxWidth = "80%";
+    b.style.padding = "8px 10px";
+    b.style.borderRadius = "12px";
+    b.style.boxShadow = "0 1px 2px rgba(0,0,0,.04)";
+    if (role === "user") {
+      b.style.background = "#4f46e5"; b.style.color = "white"; b.style.marginLeft = "auto";
+    } else {
+      b.style.background = "#f1f5f9"; b.style.color = "#0f172a";
+    }
+    b.textContent = text;
+    msgs.appendChild(b);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  add("assistant", "Hej! Jeg er din AI søvn-guide. Hvad vil du gerne arbejde på i dag?");
+
+  bubble.onclick = () => {
+    chat.style.display = chat.style.display === "none" ? "flex" : "none";
+  };
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = (inp.value || "").trim();
+    if (!text) return;
+    add("user", text);
+    conv.push({ role: "user", content: text });
+    inp.value = "";
+
+    try {
+      const r = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: conv }),
+      });
+      const data = await r.json();
+      const reply = data?.content || "Beklager, jeg kunne ikke svare.";
+      add("assistant", reply);
+      conv.push({ role: "assistant", content: reply });
+    } catch {
+      add("assistant", "Der skete en fejl. Prøv igen senere.");
+    }
+  });
+})();

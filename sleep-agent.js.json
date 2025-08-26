@@ -1,0 +1,50 @@
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Kun POST understøttes" });
+  }
+
+  const crisisRegex = /(selvmord|suicid|kan ikke mere|skade mig selv)/i;
+  const { messages = [] } = req.body || {};
+  const lastUser = [...messages].reverse().find(m => m.role === "user");
+
+  if (lastUser && crisisRegex.test(lastUser.content || "")) {
+    return res.json({
+      content:
+        "Det lyder alvorligt. Ring 112 med det samme, eller kontakt Psykiatrisk Akutmodtagelse. Du kan også ringe til Livslinien: 70 201 201."
+    });
+  }
+
+  const systemPrompt = `
+Du er en empatisk dansk søvn-terapeut baseret på CBT-I principper.
+Svar kort, klart, trin-for-trin, og med venlig tone.
+Ingen medicinråd eller diagnoser.
+Hvis brugeren er i krise → henvis til akut hjælp (112 / Livslinien).
+  `;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
+    });
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "Beklager, noget gik galt.";
+
+    res.status(200).json({ content });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Serverfejl" });
+  }
+}
